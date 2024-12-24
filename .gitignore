@@ -1,0 +1,10 @@
+*.pyc
+*.DS_Store
+*.swp
+
+*.log
+*.jpg
+*.png
+*.gif
+*.JPG
+datasets/
