@@ -1,4 +1,3 @@
-
 from pathlib import Path
 import time
 from collections import OrderedDict
@@ -8,11 +7,10 @@ import cv2
 import torch
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use('Agg')
-
+matplotlib.use('Agg')  # 使用非交互式后端，避免中文乱码
 
 class AverageTimer:
-    """ Class to help manage printing simple timing of code execution. """
+    """ 用于管理和打印代码执行时间的简单计时器类。 """
 
     def __init__(self, smoothing=0.3, newline=False):
         self.smoothing = smoothing
@@ -50,15 +48,14 @@ class AverageTimer:
             print(flush=True)
         else:
             print(end='\r', flush=True)
-        self.reset()
 
 
 class VideoStreamer:
-    """ Class to help process image streams. Four types of possible inputs:"
-        1.) USB Webcam.
-        2.) An IP camera
-        3.) A directory of images (files in directory matching 'image_glob').
-        4.) A video file, such as an .mp4 or .avi file.
+    """ 用于处理图像流的类。支持四种输入类型：
+        1. USB 摄像头。
+        2. IP 摄像头。
+        3. 图像目录（匹配 'image_glob'）。
+        4. 视频文件，如 .mp4 或 .avi 文件。
     """
     def __init__(self, basedir, resize, skip, image_glob, max_length=1000000):
         self._ip_grabbed = False
@@ -76,17 +73,17 @@ class VideoStreamer:
         self.skip = skip
         self.max_length = max_length
         if isinstance(basedir, int) or basedir.isdigit():
-            print('==> Processing USB webcam input: {}'.format(basedir))
+            print('==> 处理 USB 摄像头输入: {}'.format(basedir))
             self.cap = cv2.VideoCapture(int(basedir))
             self.listing = range(0, self.max_length)
         elif basedir.startswith(('http', 'rtsp')):
-            print('==> Processing IP camera input: {}'.format(basedir))
+            print('==> 处理 IP 摄像头输入: {}'.format(basedir))
             self.cap = cv2.VideoCapture(basedir)
             self.start_ip_camera_thread()
             self._ip_camera = True
             self.listing = range(0, self.max_length)
         elif Path(basedir).is_dir():
-            print('==> Processing image directory input: {}'.format(basedir))
+            print('==> 处理图像目录输入: {}'.format(basedir))
             self.listing = list(Path(basedir).glob(image_glob[0]))
             for j in range(1, len(image_glob)):
                 image_path = list(Path(basedir).glob(image_glob[j]))
@@ -95,11 +92,11 @@ class VideoStreamer:
             self.listing = self.listing[::self.skip]
             self.max_length = np.min([self.max_length, len(self.listing)])
             if self.max_length == 0:
-                raise IOError('No images found (maybe bad \'image_glob\' ?)')
+                raise IOError('未找到图像（可能是错误的 \'image_glob\' ?）')
             self.listing = self.listing[:self.max_length]
             self.camera = False
         elif Path(basedir).exists():
-            print('==> Processing video input: {}'.format(basedir))
+            print('==> 处理视频文件输入: {}'.format(basedir))
             self.cap = cv2.VideoCapture(basedir)
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             num_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -109,20 +106,20 @@ class VideoStreamer:
             self.max_length = np.min([self.max_length, len(self.listing)])
             self.listing = self.listing[:self.max_length]
         else:
-            raise ValueError('VideoStreamer input \"{}\" not recognized.'.format(basedir))
+            raise ValueError('VideoStreamer 输入 \"{}\" 未被识别.'.format(basedir))
         if self.camera and not self.cap.isOpened():
-            raise IOError('Could not read camera')
+            raise IOError('无法读取摄像头')
 
     def load_image(self, impath):
-        """ Read image as grayscale and resize to img_size.
-        Inputs
-            impath: Path to input image.
-        Returns
-            grayim: uint8 numpy array sized H x W.
+        """ 以灰度图读取图像并调整大小。
+        输入:
+            impath: 输入图像的路径。
+        返回:
+            grayim: uint8 类型的 numpy 数组，大小为 H x W。
         """
         grayim = cv2.imread(impath, 0)
         if grayim is None:
-            raise Exception('Error reading image %s' % impath)
+            raise Exception('读取图像 %s 失败' % impath)
         w, h = grayim.shape[1], grayim.shape[0]
         w_new, h_new = process_resize(w, h, self.resize)
         grayim = cv2.resize(
@@ -130,28 +127,25 @@ class VideoStreamer:
         return grayim
 
     def next_frame(self):
-        """ Return the next frame, and increment internal counter.
-        Returns
-             image: Next H x W image.
-             status: True or False depending whether image was loaded.
+        """ 返回下一帧，并增加内部计数器。
+        返回:
+             image: 下一个 H x W 图像。
+             status: True 或 False，取决于图像是否成功加载。
         """
-
         if self.i == self.max_length:
             return (None, False)
         if self.camera:
-
             if self._ip_camera:
-                #Wait for first image, making sure we haven't exited
-                while self._ip_grabbed is False and self._ip_exited is False:
+                # 等待第一帧，确保程序未退出
+                while self._ip_grabbed is False and self._ip_running:
                     time.sleep(.001)
-
                 ret, image = self._ip_grabbed, self._ip_image.copy()
                 if ret is False:
                     self._ip_running = False
             else:
                 ret, image = self.cap.read()
             if ret is False:
-                print('VideoStreamer: Cannot get image from camera')
+                print('VideoStreamer: 无法从摄像头获取图像')
                 return (None, False)
             w, h = image.shape[1], image.shape[0]
             if self.video_file:
@@ -186,13 +180,15 @@ class VideoStreamer:
             self._ip_image = img
             self._ip_grabbed = ret
             self._ip_index += 1
-            #print('IPCAMERA THREAD got frame {}'.format(self._ip_index))
-
+            # print('IPCAMERA THREAD got frame {}'.format(self._ip_index))
 
     def cleanup(self):
         self._ip_running = False
+        if self.camera and self.cap:
+            self.cap.release()
 
-# --- PREPROCESSING ---
+
+# --- 预处理函数 ---
 
 def process_resize(w, h, resize):
     assert(len(resize) > 0 and len(resize) <= 2)
@@ -204,11 +200,11 @@ def process_resize(w, h, resize):
     else:  # len(resize) == 2:
         w_new, h_new = resize[0], resize[1]
 
-    # Issue warning if resolution is too small or too large.
+    # 如果分辨率太小或太大，发出警告
     if max(w_new, h_new) < 160:
-        print('Warning: input resolution is very small, results may vary')
+        print('警告: 输入分辨率过小，结果可能不稳定')
     elif max(w_new, h_new) > 2000:
-        print('Warning: input resolution is very large, results may vary')
+        print('警告: 输入分辨率过大，结果可能不稳定')
 
     return w_new, h_new
 
@@ -239,8 +235,7 @@ def read_image(path, device, resize, rotation, resize_float):
     return image, inp, scales
 
 
-# --- GEOMETRY ---
-
+# --- 几何相关函数 ---
 
 def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999):
     if len(kpts0) < 5:
@@ -270,7 +265,7 @@ def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999):
 
 
 def rotate_intrinsics(K, image_shape, rot):
-    """image_shape is the shape of the image after rotation"""
+    """ 根据旋转角度调整内参矩阵 """
     assert rot <= 3
     h, w = image_shape[:2][::-1 if (rot % 2) else 1]
     fx, fy, cx, cy = K[0, 0], K[1, 1], K[0, 2], K[1, 2]
@@ -333,7 +328,7 @@ def compute_epipolar_error(kpts0, kpts1, T_0to1, K0, K1):
 
 def angle_error_mat(R1, R2):
     cos = (np.trace(np.dot(R1.T, R2)) - 1) / 2
-    cos = np.clip(cos, -1., 1.)  # numercial errors can make it out of bounds
+    cos = np.clip(cos, -1., 1.)  # 数值误差可能导致超出范围
     return np.rad2deg(np.abs(np.arccos(cos)))
 
 
@@ -346,7 +341,7 @@ def compute_pose_error(T_0to1, R, t):
     R_gt = T_0to1[:3, :3]
     t_gt = T_0to1[:3, 3]
     error_t = angle_error_vec(t, t_gt)
-    error_t = np.minimum(error_t, 180 - error_t)  # ambiguity of E estimation
+    error_t = np.minimum(error_t, 180 - error_t)  # E 估计的模糊性
     error_R = angle_error_mat(R, R_gt)
     return error_t, error_R
 
@@ -366,19 +361,18 @@ def pose_auc(errors, thresholds):
     return aucs
 
 
-# --- VISUALIZATION ---
-
+# --- 可视化相关函数 ---
 
 def plot_image_pair(imgs, dpi=100, size=6, pad=.5):
     n = len(imgs)
-    assert n == 2, 'number of images must be two'
+    assert n == 2, '图像数量必须为两个'
     figsize = (size*n, size*3/4) if size is not None else None
     _, ax = plt.subplots(1, n, figsize=figsize, dpi=dpi)
     for i in range(n):
         ax[i].imshow(imgs[i], cmap=plt.get_cmap('gray'), vmin=0, vmax=255)
         ax[i].get_yaxis().set_ticks([])
         ax[i].get_xaxis().set_ticks([])
-        for spine in ax[i].spines.values():  # remove frame
+        for spine in ax[i].spines.values():  # 移除边框
             spine.set_visible(False)
     plt.tight_layout(pad=pad)
 
@@ -409,7 +403,7 @@ def plot_matches(kpts0, kpts1, color, lw=1.5, ps=4):
 def make_matching_plot(image0, image1, kpts0, kpts1, mkpts0, mkpts1,
                        color, text, path, show_keypoints=False,
                        fast_viz=False, opencv_display=False,
-                       opencv_title='matches', small_text=[]):
+                       opencv_title='', small_text=[]):
 
     if fast_viz:
         make_matching_plot_fast(image0, image1, kpts0, kpts1, mkpts0, mkpts1,
@@ -471,16 +465,16 @@ def make_matching_plot_fast(image0, image1, kpts0, kpts1, mkpts0,
         c = c.tolist()
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
-        # display line end-points as circles
+        # 显示线端点为圆圈
         cv2.circle(out, (x0, y0), 2, c, -1, lineType=cv2.LINE_AA)
         cv2.circle(out, (x1 + margin + W0, y1), 2, c, -1,
                    lineType=cv2.LINE_AA)
 
-    # Scale factor for consistent visualization across scales.
+    # 一致的可视化缩放因子
     sc = min(H / 640., 2.0)
 
-    # Big text.
-    Ht = int(30 * sc)  # text height
+    # 大文本
+    Ht = int(30 * sc)  # 文本高度
     txt_color_fg = (255, 255, 255)
     txt_color_bg = (0, 0, 0)
     for i, t in enumerate(text):
@@ -489,8 +483,8 @@ def make_matching_plot_fast(image0, image1, kpts0, kpts1, mkpts0,
         cv2.putText(out, t, (int(8*sc), Ht*(i+1)), cv2.FONT_HERSHEY_DUPLEX,
                     1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
 
-    # Small text.
-    Ht = int(18 * sc)  # text height
+    # 小文本
+    Ht = int(18 * sc)  # 文本高度
     for i, t in enumerate(reversed(small_text)):
         cv2.putText(out, t, (int(8*sc), int(H-Ht*(i+.6))), cv2.FONT_HERSHEY_DUPLEX,
                     0.5*sc, txt_color_bg, 2, cv2.LINE_AA)
